@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Workout Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js" type="module"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js" type="module"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js" type="module"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); }
+        .dot { height: 8px; width: 8px; border-radius: 50%; display: inline-block; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-800">
+
+    <!-- Login Overlay -->
+    <div id="login-screen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900 bg-opacity-90 transition-opacity">
+        <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md">
+            <h1 class="text-2xl font-bold mb-6 text-center text-slate-800">운동 관리 시스템 로그인</h1>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">아이디</label>
+                    <input type="text" id="username" class="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">비밀번호</label>
+                    <input type="password" id="password" class="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <button id="login-btn" class="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors">로그인</button>
+                <p id="login-error" class="text-red-500 text-sm text-center hidden">잘못된 정보입니다.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App Content (Hidden by default) -->
+    <div id="app-content" class="hidden pb-12">
+        <header class="bg-white border-b border-slate-200 sticky top-0 z-40">
+            <div class="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between">
+                <h2 class="text-xl font-bold text-blue-600">Daily Workout</h2>
+                <button id="logout-btn" class="text-sm text-slate-500 hover:text-red-500">로그아웃</button>
+            </div>
+        </header>
+
+        <main class="max-w-4xl mx-auto px-4 pt-8">
+            <!-- Summary Stats -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+                    <p class="text-slate-500 text-xs uppercase font-semibold">이번 달 운동</p>
+                    <p id="stat-month-count" class="text-2xl font-bold">0일</p>
+                </div>
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+                    <p class="text-slate-500 text-xs uppercase font-semibold">완료율</p>
+                    <p id="stat-completion" class="text-2xl font-bold">0%</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <!-- Checklist for Today -->
+                <div class="lg:col-span-1">
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                        <h3 class="text-lg font-bold mb-4" id="current-date-display">오늘의 운동</h3>
+                        <div id="exercise-list" class="space-y-3">
+                            <label class="flex items-center p-3 rounded-lg border border-slate-100 hover:bg-slate-50 cursor-pointer transition-colors">
+                                <input type="checkbox" data-key="pushups" class="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 mr-3">
+                                <span>팔굽혀펴기 50개</span>
+                            </label>
+                            <label class="flex items-center p-3 rounded-lg border border-slate-100 hover:bg-slate-50 cursor-pointer transition-colors">
+                                <input type="checkbox" data-key="stairs" class="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 mr-3">
+                                <span>계단오르기</span>
+                            </label>
+                            <label class="flex items-center p-3 rounded-lg border border-slate-100 hover:bg-slate-50 cursor-pointer transition-colors">
+                                <input type="checkbox" data-key="running" class="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 mr-3">
+                                <span>러닝 5km</span>
+                            </label>
+                            <label class="flex items-center p-3 rounded-lg border border-slate-100 hover:bg-slate-50 cursor-pointer transition-colors">
+                                <input type="checkbox" data-key="squats" class="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 mr-3">
+                                <span>스쿼트 50회</span>
+                            </label>
+                        </div>
+                        <button id="save-btn" class="w-full mt-6 bg-slate-800 text-white py-3 rounded-lg font-medium hover:bg-slate-900 transition-all">저장하기</button>
+                    </div>
+                </div>
+
+                <!-- Monthly Calendar -->
+                <div class="lg:col-span-2">
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                        <div class="flex justify-between items-center mb-6">
+                            <h3 id="month-title" class="text-lg font-bold">2023년 10월</h3>
+                            <div class="flex gap-2">
+                                <button id="prev-month" class="p-2 hover:bg-slate-100 rounded-lg">←</button>
+                                <button id="next-month" class="p-2 hover:bg-slate-100 rounded-lg">→</button>
+                            </div>
+                        </div>
+                        <div class="calendar-grid text-center mb-2">
+                            <div class="text-xs font-bold text-slate-400">일</div>
+                            <div class="text-xs font-bold text-slate-400">월</div>
+                            <div class="text-xs font-bold text-slate-400">화</div>
+                            <div class="text-xs font-bold text-slate-400">수</div>
+                            <div class="text-xs font-bold text-slate-400">목</div>
+                            <div class="text-xs font-bold text-slate-400">금</div>
+                            <div class="text-xs font-bold text-slate-400">토</div>
+                        </div>
+                        <div id="calendar-days" class="calendar-grid gap-1">
+                            <!-- Days will be generated here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+        import { getFirestore, doc, setDoc, getDoc, collection, query, onSnapshot } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+
+        // --- Config & Initialization ---
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'workout-tracker-app';
+
+        // --- State Management ---
+        let currentUser = null;
+        let workoutData = {}; // Format: { "YYYY-MM-DD": { pushups: true, ... } }
+        let currentViewDate = new Date(); // To navigate months
+        let selectedDate = new Date().toISOString().split('T')[0];
+
+        // --- DOM Elements ---
+        const loginScreen = document.getElementById('login-screen');
+        const appContent = document.getElementById('app-content');
+        const loginBtn = document.getElementById('login-btn');
+        const logoutBtn = document.getElementById('logout-btn');
+        const usernameInput = document.getElementById('username');
+        const passwordInput = document.getElementById('password');
+        const loginError = document.getElementById('login-error');
+        const calendarDays = document.getElementById('calendar-days');
+        const monthTitle = document.getElementById('month-title');
+        const currentDateDisplay = document.getElementById('current-date-display');
+        const exerciseCheckboxes = document.querySelectorAll('#exercise-list input[type="checkbox"]');
+        const saveBtn = document.getElementById('save-btn');
+
+        // --- Authentication ---
+        const initAuth = async () => {
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                await signInWithCustomToken(auth, __initial_auth_token);
+            } else {
+                // Anonymous auth will be triggered AFTER the manual login check
+            }
+        };
+        initAuth();
+
+        onAuthStateChanged(auth, (user) => {
+            if (user && localStorage.getItem('isLoggedIn') === 'true') {
+                currentUser = user;
+                showApp();
+                listenToWorkouts();
+            } else {
+                hideApp();
+            }
+        });
+
+        const handleLogin = async () => {
+            if (usernameInput.value === 'user' && passwordInput.value === 'userpass') {
+                localStorage.setItem('isLoggedIn', 'true');
+                await signInAnonymously(auth);
+            } else {
+                loginError.classList.remove('hidden');
+            }
+        };
+
+        const handleLogout = () => {
+            localStorage.removeItem('isLoggedIn');
+            auth.signOut();
+            location.reload();
+        };
+
+        // --- Data Handling ---
+        const listenToWorkouts = () => {
+            if (!currentUser) return;
+            const workoutsRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'logs');
+            
+            // Note: Simple collection query as per Rule 2
+            onSnapshot(workoutsRef, (snapshot) => {
+                const newData = {};
+                snapshot.forEach(doc => {
+                    newData[doc.id] = doc.data();
+                });
+                workoutData = newData;
+                renderCalendar();
+                updateTodayUI();
+                updateStats();
+            }, (error) => {
+                console.error("Firestore Error:", error);
+            });
+        };
+
+        const saveWorkout = async () => {
+            if (!currentUser) return;
+            const data = {};
+            exerciseCheckboxes.forEach(cb => {
+                data[cb.dataset.key] = cb.checked;
+            });
+            data.updatedAt = new Date().toISOString();
+
+            try {
+                const docRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'logs', selectedDate);
+                await setDoc(docRef, data);
+                showToast("저장되었습니다!");
+            } catch (e) {
+                console.error(e);
+            }
+        };
+
+        // --- UI Rendering ---
+        const showApp = () => {
+            loginScreen.classList.add('hidden');
+            appContent.classList.remove('hidden');
+        };
+
+        const hideApp = () => {
+            loginScreen.classList.remove('hidden');
+            appContent.classList.add('hidden');
+        };
+
+        const updateTodayUI = () => {
+            currentDateDisplay.textContent = `${selectedDate} 기록`;
+            const data = workoutData[selectedDate] || {};
+            exerciseCheckboxes.forEach(cb => {
+                cb.checked = !!data[cb.dataset.key];
+            });
+        };
+
+        const renderCalendar = () => {
+            calendarDays.innerHTML = '';
+            const year = currentViewDate.getFullYear();
+            const month = currentViewDate.getMonth();
+            
+            monthTitle.textContent = `${year}년 ${month + 1}월`;
+
+            const firstDay = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+            // Padding for first week
+            for (let i = 0; i < firstDay; i++) {
+                const empty = document.createElement('div');
+                calendarDays.appendChild(empty);
+            }
+
+            for (let d = 1; d <= daysInMonth; d++) {
+                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                const dayEl = document.createElement('div');
+                dayEl.className = `h-16 border border-slate-50 flex flex-col items-center justify-center cursor-pointer rounded-lg hover:bg-blue-50 transition-colors ${selectedDate === dateStr ? 'bg-blue-100 border-blue-300' : 'bg-white'}`;
+                
+                const span = document.createElement('span');
+                span.textContent = d;
+                span.className = `text-sm font-semibold ${selectedDate === dateStr ? 'text-blue-700' : 'text-slate-600'}`;
+                dayEl.appendChild(span);
+
+                // Indicator dots for completed exercises
+                const data = workoutData[dateStr];
+                if (data) {
+                    const dotContainer = document.createElement('div');
+                    dotContainer.className = "flex gap-0.5 mt-1";
+                    
+                    const count = Object.values(data).filter(v => v === true).length;
+                    if (count > 0) {
+                        const dot = document.createElement('div');
+                        dot.className = `w-1.5 h-1.5 rounded-full ${count === 4 ? 'bg-green-500' : 'bg-blue-400'}`;
+                        dotContainer.appendChild(dot);
+                    }
+                    dayEl.appendChild(dotContainer);
+                }
+
+                dayEl.onclick = () => {
+                    selectedDate = dateStr;
+                    updateTodayUI();
+                    renderCalendar();
+                };
+                
+                calendarDays.appendChild(dayEl);
+            }
+        };
+
+        const updateStats = () => {
+            const currentMonthStr = `${currentViewDate.getFullYear()}-${String(currentViewDate.getMonth() + 1).padStart(2, '0')}`;
+            const monthLogs = Object.keys(workoutData).filter(date => date.startsWith(currentMonthStr));
+            
+            document.getElementById('stat-month-count').textContent = `${monthLogs.length}일`;
+            
+            if (monthLogs.length === 0) {
+                document.getElementById('stat-completion').textContent = '0%';
+                return;
+            }
+
+            let totalExercises = monthLogs.length * 4;
+            let completedExercises = 0;
+            monthLogs.forEach(date => {
+                const log = workoutData[date];
+                if (log.pushups) completedExercises++;
+                if (log.stairs) completedExercises++;
+                if (log.running) completedExercises++;
+                if (log.squats) completedExercises++;
+            });
+
+            const percent = Math.round((completedExercises / totalExercises) * 100);
+            document.getElementById('stat-completion').textContent = `${percent}%`;
+        };
+
+        const showToast = (msg) => {
+            const toast = document.createElement('div');
+            toast.textContent = msg;
+            toast.className = "fixed bottom-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-full shadow-lg z-50 transition-opacity duration-300";
+            document.body.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 300);
+            }, 2000);
+        };
+
+        // --- Event Listeners ---
+        loginBtn.addEventListener('click', handleLogin);
+        logoutBtn.addEventListener('click', handleLogout);
+        saveBtn.addEventListener('click', saveWorkout);
+
+        document.getElementById('prev-month').onclick = () => {
+            currentViewDate.setMonth(currentViewDate.getMonth() - 1);
+            renderCalendar();
+            updateStats();
+        };
+
+        document.getElementById('next-month').onclick = () => {
+            currentViewDate.setMonth(currentViewDate.getMonth() + 1);
+            renderCalendar();
+            updateStats();
+        };
+
+        // Initial render
+        renderCalendar();
+        updateTodayUI();
+    </script>
+</body>
+</html>
