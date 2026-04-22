@@ -3,346 +3,356 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Workout Tracker</title>
+    <title>Workout Tracker</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js" type="module"></script>
     <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js" type="module"></script>
     <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js" type="module"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-        body { font-family: 'Inter', sans-serif; }
+        @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700&display=swap');
+        body { font-family: 'Pretendard', sans-serif; }
         .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); }
-        .dot { height: 8px; width: 8px; border-radius: 50%; display: inline-block; }
     </style>
 </head>
 <body class="bg-slate-50 min-h-screen text-slate-800">
 
-    <!-- Login Overlay -->
-    <div id="login-screen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900 bg-opacity-90 transition-opacity">
-        <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md">
-            <h1 class="text-2xl font-bold mb-6 text-center text-slate-800">운동 관리 시스템 로그인</h1>
+    <!-- Login Screen -->
+    <div id="login-screen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900 transition-opacity">
+        <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm mx-4">
+            <div class="text-center mb-8">
+                <div class="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
+                    <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                </div>
+                <h1 class="text-2xl font-bold text-slate-800">운동 관리 로그인</h1>
+                <p class="text-slate-500 mt-2 text-sm">계정 정보를 입력해 주세요.</p>
+            </div>
             <div class="space-y-4">
-                <div>
-                    <label class="block text-sm font-medium mb-1">아이디</label>
-                    <input type="text" id="username" class="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium mb-1">비밀번호</label>
-                    <input type="password" id="password" class="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
-                </div>
-                <button id="login-btn" class="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors">로그인</button>
-                <p id="login-error" class="text-red-500 text-sm text-center hidden">잘못된 정보입니다.</p>
+                <input type="text" id="username" placeholder="아이디" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all">
+                <input type="password" id="password" placeholder="비밀번호" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all">
+                <button id="login-btn" class="w-full bg-blue-600 text-white py-4 rounded-xl font-bold hover:bg-blue-700 active:scale-95 transition-all">로그인</button>
+                <p id="login-error" class="text-red-500 text-xs text-center hidden">아이디 또는 비밀번호가 올바르지 않습니다.</p>
             </div>
         </div>
     </div>
 
-    <!-- Main App Content (Hidden by default) -->
-    <div id="app-content" class="hidden pb-12">
-        <header class="bg-white border-b border-slate-200 sticky top-0 z-40">
-            <div class="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between">
-                <h2 class="text-xl font-bold text-blue-600">Daily Workout</h2>
-                <button id="logout-btn" class="text-sm text-slate-500 hover:text-red-500">로그아웃</button>
-            </div>
-        </header>
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="fixed inset-0 z-[60] bg-white flex flex-col items-center justify-center hidden">
+        <div class="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+        <p class="mt-4 text-slate-500 font-medium">데이터 불러오는 중...</p>
+    </div>
 
-        <main class="max-w-4xl mx-auto px-4 pt-8">
-            <!-- Summary Stats -->
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
-                    <p class="text-slate-500 text-xs uppercase font-semibold">이번 달 운동</p>
-                    <p id="stat-month-count" class="text-2xl font-bold">0일</p>
-                </div>
-                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
-                    <p class="text-slate-500 text-xs uppercase font-semibold">완료율</p>
-                    <p id="stat-completion" class="text-2xl font-bold">0%</p>
-                </div>
+    <!-- Main Content -->
+    <div id="app-content" class="hidden min-h-screen">
+        <nav class="bg-white border-b border-slate-200 px-4 py-4 sticky top-0 z-40">
+            <div class="max-w-5xl mx-auto flex justify-between items-center">
+                <h2 class="text-xl font-extrabold text-blue-600 tracking-tight">WORKOUT DASHBOARD</h2>
+                <button id="logout-btn" class="text-sm font-medium text-slate-400 hover:text-red-500 transition-colors">로그아웃</button>
             </div>
+        </nav>
 
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <!-- Checklist for Today -->
-                <div class="lg:col-span-1">
-                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                        <h3 class="text-lg font-bold mb-4" id="current-date-display">오늘의 운동</h3>
+        <main class="max-w-5xl mx-auto px-4 py-8">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                
+                <!-- Left: Today's Checklist -->
+                <div class="lg:col-span-4 space-y-6">
+                    <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+                        <div class="mb-6">
+                            <p class="text-slate-400 text-sm font-semibold uppercase mb-1">SELECTED DATE</p>
+                            <h3 id="selected-date-title" class="text-2xl font-bold text-slate-800">2024.01.01</h3>
+                        </div>
+
                         <div id="exercise-list" class="space-y-3">
-                            <label class="flex items-center p-3 rounded-lg border border-slate-100 hover:bg-slate-50 cursor-pointer transition-colors">
-                                <input type="checkbox" data-key="pushups" class="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 mr-3">
-                                <span>팔굽혀펴기 50개</span>
+                            <label class="group flex items-center p-4 rounded-2xl border border-slate-100 hover:border-blue-200 hover:bg-blue-50/50 cursor-pointer transition-all">
+                                <input type="checkbox" data-key="pushups" class="w-6 h-6 rounded-lg border-slate-300 text-blue-600 focus:ring-blue-500 mr-4 transition-all">
+                                <span class="font-medium text-slate-700 group-hover:text-blue-700">팔굽혀펴기 50개</span>
                             </label>
-                            <label class="flex items-center p-3 rounded-lg border border-slate-100 hover:bg-slate-50 cursor-pointer transition-colors">
-                                <input type="checkbox" data-key="stairs" class="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 mr-3">
-                                <span>계단오르기</span>
+                            <label class="group flex items-center p-4 rounded-2xl border border-slate-100 hover:border-blue-200 hover:bg-blue-50/50 cursor-pointer transition-all">
+                                <input type="checkbox" data-key="stairs" class="w-6 h-6 rounded-lg border-slate-300 text-blue-600 focus:ring-blue-500 mr-4 transition-all">
+                                <span class="font-medium text-slate-700 group-hover:text-blue-700">계단오르기</span>
                             </label>
-                            <label class="flex items-center p-3 rounded-lg border border-slate-100 hover:bg-slate-50 cursor-pointer transition-colors">
-                                <input type="checkbox" data-key="running" class="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 mr-3">
-                                <span>러닝 5km</span>
+                            <label class="group flex items-center p-4 rounded-2xl border border-slate-100 hover:border-blue-200 hover:bg-blue-50/50 cursor-pointer transition-all">
+                                <input type="checkbox" data-key="running" class="w-6 h-6 rounded-lg border-slate-300 text-blue-600 focus:ring-blue-500 mr-4 transition-all">
+                                <span class="font-medium text-slate-700 group-hover:text-blue-700">러닝 5km</span>
                             </label>
-                            <label class="flex items-center p-3 rounded-lg border border-slate-100 hover:bg-slate-50 cursor-pointer transition-colors">
-                                <input type="checkbox" data-key="squats" class="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 mr-3">
-                                <span>스쿼트 50회</span>
+                            <label class="group flex items-center p-4 rounded-2xl border border-slate-100 hover:border-blue-200 hover:bg-blue-50/50 cursor-pointer transition-all">
+                                <input type="checkbox" data-key="squats" class="w-6 h-6 rounded-lg border-slate-300 text-blue-600 focus:ring-blue-500 mr-4 transition-all">
+                                <span class="font-medium text-slate-700 group-hover:text-blue-700">스쿼트 50회</span>
                             </label>
                         </div>
-                        <button id="save-btn" class="w-full mt-6 bg-slate-800 text-white py-3 rounded-lg font-medium hover:bg-slate-900 transition-all">저장하기</button>
+
+                        <button id="save-btn" class="w-full mt-8 bg-slate-800 text-white py-4 rounded-2xl font-bold hover:bg-slate-900 active:scale-[0.98] transition-all shadow-lg shadow-slate-200">
+                            기록 저장하기
+                        </button>
+                    </div>
+
+                    <!-- Small Stats Card -->
+                    <div class="bg-blue-600 p-6 rounded-3xl text-white shadow-lg shadow-blue-200">
+                        <p class="text-blue-100 text-sm font-medium">이번 달 총 운동 일수</p>
+                        <p id="stat-days" class="text-4xl font-bold mt-1">0일</p>
                     </div>
                 </div>
 
-                <!-- Monthly Calendar -->
-                <div class="lg:col-span-2">
-                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                        <div class="flex justify-between items-center mb-6">
-                            <h3 id="month-title" class="text-lg font-bold">2023년 10월</h3>
-                            <div class="flex gap-2">
-                                <button id="prev-month" class="p-2 hover:bg-slate-100 rounded-lg">←</button>
-                                <button id="next-month" class="p-2 hover:bg-slate-100 rounded-lg">→</button>
+                <!-- Right: Calendar View -->
+                <div class="lg:col-span-8">
+                    <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 h-full">
+                        <div class="flex justify-between items-center mb-8">
+                            <h3 id="month-display" class="text-2xl font-bold text-slate-800">2024년 1월</h3>
+                            <div class="flex bg-slate-100 p-1 rounded-xl">
+                                <button id="prev-month" class="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                                </button>
+                                <button id="next-month" class="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                                </button>
                             </div>
                         </div>
-                        <div class="calendar-grid text-center mb-2">
-                            <div class="text-xs font-bold text-slate-400">일</div>
-                            <div class="text-xs font-bold text-slate-400">월</div>
-                            <div class="text-xs font-bold text-slate-400">화</div>
-                            <div class="text-xs font-bold text-slate-400">수</div>
-                            <div class="text-xs font-bold text-slate-400">목</div>
-                            <div class="text-xs font-bold text-slate-400">금</div>
-                            <div class="text-xs font-bold text-slate-400">토</div>
+
+                        <div class="calendar-grid mb-4">
+                            <div class="text-center text-xs font-bold text-red-400 py-2">일</div>
+                            <div class="text-center text-xs font-bold text-slate-400 py-2">월</div>
+                            <div class="text-center text-xs font-bold text-slate-400 py-2">화</div>
+                            <div class="text-center text-xs font-bold text-slate-400 py-2">수</div>
+                            <div class="text-center text-xs font-bold text-slate-400 py-2">목</div>
+                            <div class="text-center text-xs font-bold text-slate-400 py-2">금</div>
+                            <div class="text-center text-xs font-bold text-slate-400 py-2">토</div>
                         </div>
-                        <div id="calendar-days" class="calendar-grid gap-1">
-                            <!-- Days will be generated here -->
+
+                        <div id="calendar-days" class="calendar-grid gap-2">
+                            <!-- JS will populate -->
                         </div>
                     </div>
                 </div>
+
             </div>
         </main>
     </div>
 
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
-        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
-        import { getFirestore, doc, setDoc, getDoc, collection, query, onSnapshot } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken, signOut } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+        import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 
-        // --- Config & Initialization ---
+        // --- Firebase Setup ---
         const firebaseConfig = JSON.parse(__firebase_config);
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'workout-tracker-app';
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'workout-tracker-v2';
 
-        // --- State Management ---
-        let currentUser = null;
-        let workoutData = {}; // Format: { "YYYY-MM-DD": { pushups: true, ... } }
-        let currentViewDate = new Date(); // To navigate months
-        let selectedDate = new Date().toISOString().split('T')[0];
+        // --- App State ---
+        let user = null;
+        let workoutData = {};
+        const today = new Date();
+        let viewDate = new Date(today.getFullYear(), today.getMonth(), 1);
+        let selectedDateStr = formatDate(today);
 
-        // --- DOM Elements ---
+        // --- Elements ---
         const loginScreen = document.getElementById('login-screen');
         const appContent = document.getElementById('app-content');
         const loginBtn = document.getElementById('login-btn');
         const logoutBtn = document.getElementById('logout-btn');
-        const usernameInput = document.getElementById('username');
-        const passwordInput = document.getElementById('password');
-        const loginError = document.getElementById('login-error');
-        const calendarDays = document.getElementById('calendar-days');
-        const monthTitle = document.getElementById('month-title');
-        const currentDateDisplay = document.getElementById('current-date-display');
-        const exerciseCheckboxes = document.querySelectorAll('#exercise-list input[type="checkbox"]');
         const saveBtn = document.getElementById('save-btn');
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const calendarDays = document.getElementById('calendar-days');
+        const monthDisplay = document.getElementById('month-display');
+        const selectedDateTitle = document.getElementById('selected-date-title');
+        const checkboxes = document.querySelectorAll('#exercise-list input[type="checkbox"]');
 
-        // --- Authentication ---
-        const initAuth = async () => {
-            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                await signInWithCustomToken(auth, __initial_auth_token);
-            } else {
-                // Anonymous auth will be triggered AFTER the manual login check
+        // --- Helper: Format Date (YYYY-MM-DD) ---
+        function formatDate(date) {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const d = String(date.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        }
+
+        // --- Auth Logic ---
+        const initSession = async () => {
+            const isLocalLogin = localStorage.getItem('workout_session') === 'true';
+            if (isLocalLogin) {
+                loadingOverlay.classList.remove('hidden');
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
             }
         };
-        initAuth();
 
-        onAuthStateChanged(auth, (user) => {
-            if (user && localStorage.getItem('isLoggedIn') === 'true') {
-                currentUser = user;
-                showApp();
-                listenToWorkouts();
+        onAuthStateChanged(auth, (u) => {
+            user = u;
+            if (user && localStorage.getItem('workout_session') === 'true') {
+                loginScreen.classList.add('hidden');
+                appContent.classList.remove('hidden');
+                startDataListener();
             } else {
-                hideApp();
+                loginScreen.classList.remove('hidden');
+                appContent.classList.add('hidden');
             }
+            loadingOverlay.classList.add('hidden');
         });
 
-        const handleLogin = async () => {
-            if (usernameInput.value === 'user' && passwordInput.value === 'userpass') {
-                localStorage.setItem('isLoggedIn', 'true');
-                await signInAnonymously(auth);
+        loginBtn.onclick = async () => {
+            const id = document.getElementById('username').value;
+            const pw = document.getElementById('password').value;
+            const errorMsg = document.getElementById('login-error');
+
+            if (id === 'user' && pw === 'userpass') {
+                errorMsg.classList.add('hidden');
+                loadingOverlay.classList.remove('hidden');
+                localStorage.setItem('workout_session', 'true');
+                try {
+                    await signInAnonymously(auth);
+                } catch (e) {
+                    console.error("Auth Error", e);
+                    loadingOverlay.classList.add('hidden');
+                }
             } else {
-                loginError.classList.remove('hidden');
+                errorMsg.classList.remove('hidden');
             }
         };
 
-        const handleLogout = () => {
-            localStorage.removeItem('isLoggedIn');
-            auth.signOut();
-            location.reload();
+        logoutBtn.onclick = () => {
+            localStorage.removeItem('workout_session');
+            signOut(auth).then(() => location.reload());
         };
 
-        // --- Data Handling ---
-        const listenToWorkouts = () => {
-            if (!currentUser) return;
-            const workoutsRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'logs');
+        // --- Firestore Logic ---
+        const startDataListener = () => {
+            if (!user) return;
+            // RULE 1: Strict Path
+            const logsRef = collection(db, 'artifacts', appId, 'users', user.uid, 'workout_logs');
             
-            // Note: Simple collection query as per Rule 2
-            onSnapshot(workoutsRef, (snapshot) => {
-                const newData = {};
+            // RULE 2: Simple query
+            onSnapshot(logsRef, (snapshot) => {
+                const data = {};
                 snapshot.forEach(doc => {
-                    newData[doc.id] = doc.data();
+                    data[doc.id] = doc.data();
                 });
-                workoutData = newData;
-                renderCalendar();
-                updateTodayUI();
-                updateStats();
-            }, (error) => {
-                console.error("Firestore Error:", error);
-            });
+                workoutData = data;
+                updateUI();
+            }, (err) => console.error("Firestore Error", err));
         };
 
-        const saveWorkout = async () => {
-            if (!currentUser) return;
-            const data = {};
-            exerciseCheckboxes.forEach(cb => {
-                data[cb.dataset.key] = cb.checked;
+        const saveCurrentDay = async () => {
+            if (!user) return;
+            const log = {};
+            checkboxes.forEach(cb => {
+                log[cb.dataset.key] = cb.checked;
             });
-            data.updatedAt = new Date().toISOString();
+            log.timestamp = new Date().toISOString();
 
             try {
-                const docRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'logs', selectedDate);
-                await setDoc(docRef, data);
-                showToast("저장되었습니다!");
+                const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'workout_logs', selectedDateStr);
+                await setDoc(docRef, log);
+                showToast("기록이 저장되었습니다!");
             } catch (e) {
-                console.error(e);
+                console.error("Save Error", e);
+                showToast("저장 중 오류가 발생했습니다.");
             }
         };
 
-        // --- UI Rendering ---
-        const showApp = () => {
-            loginScreen.classList.add('hidden');
-            appContent.classList.remove('hidden');
-        };
+        // --- UI Logic ---
+        function updateUI() {
+            renderCalendar();
+            updateChecklist();
+            updateStats();
+        }
 
-        const hideApp = () => {
-            loginScreen.classList.remove('hidden');
-            appContent.classList.add('hidden');
-        };
-
-        const updateTodayUI = () => {
-            currentDateDisplay.textContent = `${selectedDate} 기록`;
-            const data = workoutData[selectedDate] || {};
-            exerciseCheckboxes.forEach(cb => {
-                cb.checked = !!data[cb.dataset.key];
+        function updateChecklist() {
+            selectedDateTitle.textContent = selectedDateStr.replace(/-/g, '. ');
+            const dayData = workoutData[selectedDateStr] || {};
+            checkboxes.forEach(cb => {
+                cb.checked = !!dayData[cb.dataset.key];
             });
-        };
+        }
 
-        const renderCalendar = () => {
+        function renderCalendar() {
             calendarDays.innerHTML = '';
-            const year = currentViewDate.getFullYear();
-            const month = currentViewDate.getMonth();
-            
-            monthTitle.textContent = `${year}년 ${month + 1}월`;
+            const year = viewDate.getFullYear();
+            const month = viewDate.getMonth();
+            monthDisplay.textContent = `${year}년 ${month + 1}월`;
 
             const firstDay = new Date(year, month, 1).getDay();
             const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-            // Padding for first week
+            // Empty slots for prev month
             for (let i = 0; i < firstDay; i++) {
-                const empty = document.createElement('div');
-                calendarDays.appendChild(empty);
+                calendarDays.appendChild(document.createElement('div'));
             }
 
             for (let d = 1; d <= daysInMonth; d++) {
                 const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-                const dayEl = document.createElement('div');
-                dayEl.className = `h-16 border border-slate-50 flex flex-col items-center justify-center cursor-pointer rounded-lg hover:bg-blue-50 transition-colors ${selectedDate === dateStr ? 'bg-blue-100 border-blue-300' : 'bg-white'}`;
+                const dayData = workoutData[dateStr];
+                const isSelected = dateStr === selectedDateStr;
                 
-                const span = document.createElement('span');
-                span.textContent = d;
-                span.className = `text-sm font-semibold ${selectedDate === dateStr ? 'text-blue-700' : 'text-slate-600'}`;
-                dayEl.appendChild(span);
+                const cell = document.createElement('div');
+                cell.className = `relative aspect-square flex flex-col items-center justify-center rounded-2xl cursor-pointer transition-all border
+                    ${isSelected ? 'bg-blue-600 border-blue-600 text-white shadow-md z-10 scale-105' : 'bg-white border-slate-100 hover:bg-slate-50 text-slate-700'}`;
 
-                // Indicator dots for completed exercises
-                const data = workoutData[dateStr];
-                if (data) {
-                    const dotContainer = document.createElement('div');
-                    dotContainer.className = "flex gap-0.5 mt-1";
-                    
-                    const count = Object.values(data).filter(v => v === true).length;
-                    if (count > 0) {
-                        const dot = document.createElement('div');
-                        dot.className = `w-1.5 h-1.5 rounded-full ${count === 4 ? 'bg-green-500' : 'bg-blue-400'}`;
-                        dotContainer.appendChild(dot);
+                const dayNum = document.createElement('span');
+                dayNum.textContent = d;
+                dayNum.className = `text-sm font-bold ${isSelected ? 'text-white' : 'text-slate-700'}`;
+                cell.appendChild(dayNum);
+
+                // Completion Indicators
+                if (dayData) {
+                    const activeCount = Object.values(dayData).filter(v => v === true).length;
+                    if (activeCount > 0) {
+                        const dots = document.createElement('div');
+                        dots.className = "flex gap-0.5 mt-1";
+                        // 4 dots or one highlighted indicator
+                        const indicator = document.createElement('div');
+                        indicator.className = `h-1.5 w-1.5 rounded-full ${activeCount === 4 ? (isSelected ? 'bg-white' : 'bg-green-500') : (isSelected ? 'bg-blue-200' : 'bg-blue-400')}`;
+                        dots.appendChild(indicator);
+                        cell.appendChild(dots);
                     }
-                    dayEl.appendChild(dotContainer);
                 }
 
-                dayEl.onclick = () => {
-                    selectedDate = dateStr;
-                    updateTodayUI();
+                cell.onclick = () => {
+                    selectedDateStr = dateStr;
+                    updateChecklist();
                     renderCalendar();
                 };
-                
-                calendarDays.appendChild(dayEl);
+
+                calendarDays.appendChild(cell);
             }
-        };
+        }
 
-        const updateStats = () => {
-            const currentMonthStr = `${currentViewDate.getFullYear()}-${String(currentViewDate.getMonth() + 1).padStart(2, '0')}`;
-            const monthLogs = Object.keys(workoutData).filter(date => date.startsWith(currentMonthStr));
-            
-            document.getElementById('stat-month-count').textContent = `${monthLogs.length}일`;
-            
-            if (monthLogs.length === 0) {
-                document.getElementById('stat-completion').textContent = '0%';
-                return;
-            }
+        function updateStats() {
+            const currentMonthPrefix = `${viewDate.getFullYear()}-${String(viewDate.getMonth() + 1).padStart(2, '0')}`;
+            const monthLogs = Object.keys(workoutData).filter(k => k.startsWith(currentMonthPrefix));
+            document.getElementById('stat-days').textContent = `${monthLogs.length}일`;
+        }
 
-            let totalExercises = monthLogs.length * 4;
-            let completedExercises = 0;
-            monthLogs.forEach(date => {
-                const log = workoutData[date];
-                if (log.pushups) completedExercises++;
-                if (log.stairs) completedExercises++;
-                if (log.running) completedExercises++;
-                if (log.squats) completedExercises++;
-            });
-
-            const percent = Math.round((completedExercises / totalExercises) * 100);
-            document.getElementById('stat-completion').textContent = `${percent}%`;
-        };
-
-        const showToast = (msg) => {
+        function showToast(msg) {
             const toast = document.createElement('div');
             toast.textContent = msg;
-            toast.className = "fixed bottom-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-full shadow-lg z-50 transition-opacity duration-300";
+            toast.className = "fixed bottom-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-full text-sm font-bold shadow-2xl z-[100] transition-all opacity-0 translate-y-4";
             document.body.appendChild(toast);
             setTimeout(() => {
-                toast.style.opacity = '0';
-                setTimeout(() => toast.remove(), 300);
-            }, 2000);
-        };
+                toast.classList.remove('opacity-0', 'translate-y-4');
+            }, 10);
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-4');
+                setTimeout(() => toast.remove(), 500);
+            }, 2500);
+        }
 
-        // --- Event Listeners ---
-        loginBtn.addEventListener('click', handleLogin);
-        logoutBtn.addEventListener('click', handleLogout);
-        saveBtn.addEventListener('click', saveWorkout);
-
+        // --- Event Handlers ---
+        saveBtn.onclick = saveCurrentDay;
         document.getElementById('prev-month').onclick = () => {
-            currentViewDate.setMonth(currentViewDate.getMonth() - 1);
-            renderCalendar();
-            updateStats();
+            viewDate.setMonth(viewDate.getMonth() - 1);
+            updateUI();
         };
-
         document.getElementById('next-month').onclick = () => {
-            currentViewDate.setMonth(currentViewDate.getMonth() + 1);
-            renderCalendar();
-            updateStats();
+            viewDate.setMonth(viewDate.getMonth() + 1);
+            updateUI();
         };
 
-        // Initial render
-        renderCalendar();
-        updateTodayUI();
+        // Start
+        initSession();
+
     </script>
 </body>
 </html>
